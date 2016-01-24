@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Hello WebSocket</title>
+		<script src="sockjs-0.3.4.js"></script>
+		<script src="stomp.js"></script>
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+
+		<script type="text/javascript">
+
+			var stompClient = null;
+
+			function connect() {
+				var socket = new SockJS('/imageMessages');
+				stompClient = Stomp.over(socket);
+				stompClient.connect({}, function (frame) {
+					console.log('Connected: ' + frame);
+					stompClient.subscribe('/topic/images', function (data) {
+						updateImages(JSON.parse(data.body));
+					});
+				});
+			}
+
+			function disconnect() {
+				if (stompClient != null) {
+					stompClient.disconnect();
+				}
+				setConnected(false);
+				console.log("Disconnected");
+			}
+
+
+			function showGreeting(message) {
+				var response = document.getElementById('response');
+				var p = document.createElement('p');
+				p.style.wordWrap = 'break-word';
+				p.appendChild(document.createTextNode(message));
+				response.appendChild(p);
+			}
+			$(document).ready(function () {
+				$.ajax({
+					url: '/images',
+					type: "GET",
+					async: true,
+					dataType: "json",
+					success: function (data) {
+						updateImages(data);
+					}
+				});
+				$(':button').click(function () {
+					var formData = new FormData($('form')[0]);
+					$.ajax({
+						url: '/upload',
+						type: 'POST',
+						data: formData,
+						cache: false,
+						contentType: false,
+						processData: false
+					});
+				});
+			});
+
+			function updateImages(data) {
+				var imagesDiv = document.getElementById('images');
+				imagesDiv.innerHTML = "";
+				data.forEach(function (element) {
+					var li = document.createElement('li');
+					var img = document.createElement('img');
+					img.src = '/img/' + element.imagePath;
+					li.appendChild(img);
+					var descriptionInput = document.createElement('input');
+					descriptionInput.type = 'textarea';
+					descriptionInput.value = element.imageDescription;
+					descriptionInput.onkeyup = function () {
+						stompClient.send('/app/imageMessages', {},
+								JSON.stringify({imagePath: element.imagePath, imageDescription: $(this).val()}));
+						focusToKeep = $(this);
+					};
+					li.appendChild(descriptionInput);
+					imagesDiv.appendChild(li);
+				});
+
+			}
+
+		</script>
+	</head>
+	<body onload="connect()">
+		<noscript><h2 style="color: #ff0000">Seems your browser doesn't support Javascript! Websocket relies on Javascript being enabled. Please enable
+			Javascript and reload this page!</h2></noscript>
+		<div>
+			<form enctype="multipart/form-data">
+				<input name="file" type="file" />
+				<input type="button" value="Upload" />
+			</form>
+		</div>
+		<div id="images">
+
+		</div>
+	</body>
+</html>
